@@ -1,0 +1,17 @@
+# Build artifacts
+target/
+node_modules/
+dist/
+*.log
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
