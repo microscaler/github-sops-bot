@@ -1,0 +1,17 @@
+# Probot configuration
+# See https://probot.github.io/docs/configuration/
+
+# App name (used in logs)
+name: github-sops-bot
+
+# Webhook events to subscribe to
+events:
+  - push
+  - repository
+
+# Permissions required by the app
+permissions:
+  contents: write
+  secrets: write
+  metadata: read
+

@@ -1,112 +1,28 @@
 # GitHub SOPS Bot
 
-GitHub Probot app that automatically manages GPG keys for repositories subscribed to secret management.
+GitHub App (built with Probot) that automatically manages GPG keys for repositories subscribed to secret management by listening to GitHub webhook events.
 
 ## Overview
 
-This bot monitors repositories for `.github/secret-management.yaml` files and automatically:
+This is a **GitHub App** that runs as a service and listens to GitHub webhook events. When repositories subscribe to secret management, the bot automatically:
 
-1. **Detects subscriptions** - Checks for `.github/secret-management.yaml` with `subscribe: true`
-2. **Generates GPG keys** - Creates a GPG key pair named `{org}/{repo}`
-3. **Stores private key** - Saves the private key in GitHub Secrets as `GPG_KEY` (base64 encoded)
-4. **Commits public key** - Commits the public key to `.github/.gpg` in the repository
+1. **Listens for events** - Receives webhook events from GitHub (push, repository.created)
+2. **Detects subscriptions** - Checks for `.github/secret-management.yaml` with `subscribe: true`
+3. **Generates GPG keys** - Creates a GPG key pair named `{org}/{repo}`
+4. **Stores private key** - Saves the private key in GitHub Secrets as `GPG_KEY` (base64 encoded)
+5. **Commits public key** - Commits the public key to `.github/.gpg` in the repository
 
-Built with [Probot](https://probot.github.io/) - a framework for building GitHub Apps in Node.js.
+**Important:** This bot runs as a GitHub App service that receives webhook events from GitHub. It must be deployed to a platform that can receive HTTP webhooks and configured in your GitHub organization settings.
 
 ## Quick Start
 
 1. **Create GitHub App** → [See detailed instructions](#github-app-setup)
-2. **Install dependencies** → `npm install`
-3. **Configure environment** → Create `.env` file
-4. **Install app on organization** → Grant permissions
-5. **Deploy** → Choose your platform
-6. **Subscribe repositories** → Create `.github/secret-management.yaml`
+2. **Deploy the bot** → Deploy to a platform that can receive webhooks (see [Deployment](#deployment))
+3. **Configure webhook URL** → Set the webhook URL in GitHub App settings to point to your deployed bot
+4. **Install app on organization** → Grant permissions and install on repositories
+5. **Subscribe repositories** → Create `.github/secret-management.yaml` in repositories
 
-For detailed instructions, see [Installation](#installation) and [GitHub App Setup](#github-app-setup) sections below.
-
-## Deployment
-
-### Using Published Docker Image
-
-The bot is automatically published to GitHub Container Registry (ghcr.io) when:
-- Code is pushed to `main` or `master` branch
-- A new tag starting with `v` is created (e.g., `v1.0.0`)
-
-The published image is available at:
-- `ghcr.io/microscaler/github-sops-bot:latest`
-- `ghcr.io/microscaler/github-sops-bot:v1.0.0` (for tagged releases)
-- `ghcr.io/microscaler/github-sops-bot:main` (for main branch)
-
-### Running with Docker
-
-```bash
-docker run -d \
-  -e APP_ID=your-app-id \
-  -e PRIVATE_KEY="$(cat private-key.pem)" \
-  -e WEBHOOK_SECRET=your-webhook-secret \
-  -e GITHUB_CLIENT_ID=your-client-id \
-  -e GITHUB_CLIENT_SECRET=your-client-secret \
-  -p 3000:3000 \
-  ghcr.io/microscaler/github-sops-bot:latest
-```
-
-### Running with Docker Compose
-
-```yaml
-version: '3'
-services:
-  github-sops-bot:
-    image: ghcr.io/microscaler/github-sops-bot:latest
-    environment:
-      APP_ID: ${APP_ID}
-      PRIVATE_KEY: ${PRIVATE_KEY}
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
-```
-
-### Running on Kubernetes
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: github-sops-bot
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: github-sops-bot
-  template:
-    metadata:
-      labels:
-        app: github-sops-bot
-    spec:
-      containers:
-      - name: bot
-        image: ghcr.io/microscaler/github-sops-bot:latest
-        env:
-        - name: APP_ID
-          valueFrom:
-            secretKeyRef:
-              name: github-sops-bot-secrets
-              key: app-id
-        - name: PRIVATE_KEY
-          valueFrom:
-            secretKeyRef:
-              name: github-sops-bot-secrets
-              key: private-key
-        - name: WEBHOOK_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: github-sops-bot-secrets
-              key: webhook-secret
-        ports:
-        - containerPort: 3000
-```
+For detailed instructions, see [GitHub App Setup](#github-app-setup) and [Deployment](#deployment) sections below.
 
 ## Secret Management Configuration
 
@@ -126,57 +42,50 @@ optionalPathRegex: microservices/.*/deployment-configuration/.*/application\.sec
 - `optionalPathRegex`: Optional regex pattern for secret file paths
 - `_extends`: Optional reference to parent configuration
 
+## How It Works
+
+This bot operates as a **GitHub App** that:
+
+1. **Receives webhook events** from GitHub when repositories are created or files are pushed
+2. **Processes events** to detect `.github/secret-management.yaml` files
+3. **Generates GPG keys** for subscribed repositories
+4. **Stores keys** securely using GitHub's API
+
+The bot must be:
+- **Deployed** to a platform accessible via HTTPS (to receive webhooks)
+- **Configured** as a GitHub App in your organization settings
+- **Installed** on the repositories where you want secret management
+
 ## Installation
 
 ### Prerequisites
 
-- Node.js 18+ 
-- GPG installed and available in PATH (`gpg --version` to verify)
 - GitHub organization admin access (to create and install GitHub App)
-- A GitHub App created (see [GitHub App Setup](#github-app-setup) below)
+- A deployment platform that can receive HTTPS webhooks (see [Deployment](#deployment))
+- GPG installed and available in PATH (on the deployment platform)
+- Node.js 18+ (if deploying from source)
 
 ### Step-by-Step Installation
 
-#### 1. Clone or Navigate to Bot Directory
+#### 1. Create GitHub App
 
-```bash
-git clone https://github.com/microscaler/github-sops-bot.git
-cd github-sops-bot
-```
+First, create a GitHub App in your organization. See [GitHub App Setup](#github-app-setup) for detailed instructions.
 
-#### 2. Install Dependencies
+#### 2. Deploy the Bot
 
-```bash
-npm install
-```
+Deploy the bot to a platform that can receive webhooks. See [Deployment](#deployment) section for options.
 
-#### 3. Build TypeScript
+#### 3. Configure Webhook URL
 
-```bash
-npm run build
-```
+Update your GitHub App settings with the webhook URL of your deployed bot.
 
-#### 4. Configure Environment
+#### 4. Install the App
 
-Create a `.env` file in the root directory:
+Install the GitHub App on your organization and grant permissions to repositories.
 
-```bash
-APP_ID=your-app-id
-PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-WEBHOOK_SECRET=your-webhook-secret
-GITHUB_CLIENT_ID=your-client-id
-GITHUB_CLIENT_SECRET=your-client-secret
-```
+#### 5. Subscribe Repositories
 
-#### 5. Run Locally
-
-```bash
-# Development mode with auto-reload
-npm run dev
-
-# Production mode
-npm start
-```
+Create `.github/secret-management.yaml` files in repositories to enable secret management.
 
 ## GitHub App Setup
 
@@ -215,11 +124,69 @@ After installation, you'll need:
 - **Webhook Secret**: The secret you set when creating the app
 - **Client ID** and **Client Secret**: Found on the app's general settings page
 
+## Deployment
+
+The bot must be deployed to a platform that can receive HTTPS webhooks from GitHub. The deployment platform needs:
+
+- **HTTPS endpoint** accessible from the internet
+- **GPG installed** and available in PATH
+- **Environment variables** configured (APP_ID, PRIVATE_KEY, WEBHOOK_SECRET)
+
+### Recommended Deployment Platforms
+
+#### GitHub App Hosting Services
+
+- **[Glitch](https://glitch.com/)** - Easy hosting for Probot apps (recommended for quick setup)
+- **[Railway](https://railway.app/)** - Modern deployment platform
+- **[Heroku](https://www.heroku.com/)** - Traditional PaaS
+
+#### Self-Hosted Options
+
+If you need to host the bot yourself, you can deploy it to:
+
+- **Docker container** on any platform
+- **Cloud Run** (GCP), **Lambda** (AWS), or similar serverless platforms
+- **VPS** or **Kubernetes** cluster (if you have infrastructure)
+
+### Environment Variables
+
+Required environment variables:
+
+- `APP_ID` - GitHub App ID (from GitHub App settings)
+- `PRIVATE_KEY` or `PRIVATE_KEY_PATH` - GitHub App private key
+- `WEBHOOK_SECRET` - Webhook secret (set when creating GitHub App)
+
+Optional:
+- `LOG_LEVEL` - Logging level (default: `info`)
+- `PORT` - HTTP port (default: `3000`)
+
+### Docker Image
+
+The bot is published to GitHub Container Registry:
+
+- `ghcr.io/microscaler/github-sops-bot:latest`
+- `ghcr.io/microscaler/github-sops-bot:v1.0.0` (for tagged releases)
+
+### Example: Deploying with Docker
+
+```bash
+docker run -d \
+  -e APP_ID=your-app-id \
+  -e PRIVATE_KEY="$(cat private-key.pem)" \
+  -e WEBHOOK_SECRET=your-webhook-secret \
+  -p 3000:3000 \
+  ghcr.io/microscaler/github-sops-bot:latest
+```
+
+**Important:** Ensure the container has GPG installed and the port is accessible via HTTPS (use a reverse proxy or load balancer if needed).
+
 ## Development
 
 ### Local Development Setup
 
-1. Install [smee.io](https://smee.io) CLI:
+For local development, use [smee.io](https://smee.io) to forward webhooks:
+
+1. Install smee CLI:
    ```bash
    npm install -g smee-client
    ```
@@ -233,6 +200,7 @@ After installation, you'll need:
 
 4. Run the bot in development mode:
    ```bash
+   npm install
    npm run dev
    ```
 
@@ -241,17 +209,6 @@ After installation, you'll need:
 ```bash
 npm test
 ```
-
-## Publishing
-
-This bot is automatically published to GitHub Container Registry (ghcr.io) when:
-- Code is pushed to `main` or `master` branch
-- A new tag starting with `v` is created (e.g., `v1.0.0`)
-
-The published image is available at:
-- `ghcr.io/microscaler/github-sops-bot:latest`
-- `ghcr.io/microscaler/github-sops-bot:v1.0.0` (for tagged releases)
-- `ghcr.io/microscaler/github-sops-bot:main` (for main branch)
 
 ## Related Components
 
